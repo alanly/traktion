@@ -1,8 +1,8 @@
 module Traktion
   module Models
     class Base
-      Her::API.setup
       include Her::Model
+      uses_api Traktion.api
     end
   end
 end

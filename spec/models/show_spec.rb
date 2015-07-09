@@ -1,71 +1,82 @@
 require 'spec_helper'
+require 'traktion/models/show'
 
 describe Traktion::Models::Show do
   before do
-    # Stubs for Show
+    # Create stubs for the Show model.
     stub_api_for(Traktion::Models::Show) do |s|
-      s.get('shows/foobar') {|env| [200, {}, {title: 'foobar', ids: {slug: 'foobar'}}.to_json]}
-      s.get('shows/popular') {|env| [200, {}, [{title: 'foo', ids: {slug: 'foo'}}, {title: 'foo', ids: {slug: 'foo'}}].to_json]}
-      s.get('shows/trending') {|env| [200, {}, [{watchers: 100, show: {title: 'foo', ids: {slug: 'foo'}}}, {watchers: 50, show: {title: 'bar', ids: {slug: 'bar'}}}].to_json]}
-      s.get('shows/updates/2014-09-22') {|env| [200, {}, [{updated_at: '2014-09-22', show: {title: 'foo', ids: {slug: 'foo'}}}, {updated_at: '2014-09-22', show: {title: 'bar', ids: {slug: 'bar'}}}].to_json]}
+      s.get('/shows/popular') {|env| [200, {}, [{title: 'foobar', ids: {trakt: 123, slug: 'foobar'}}].to_json]}
+      s.get('/shows/trending') {|env| [200, {}, [{title: 'foobar', ids: {trakt: 123, slug: 'foobar'}}].to_json]}
+      s.get('/shows/updates/2015-02-24') {|env| [200, {}, [{title: 'foobar', ids: {trakt: 123, slug: 'foobar'}}].to_json]}
+      s.get('/shows/foobar') {|env| [200, {}, {title: 'foobar', ids: {trakt: 123, slug: 'foobar'}}.to_json]}
+      s.get('/shows/foobar/aliases/') {|env| [200, {}, ['foo', 'bar', 'baz'].to_json]}
+      s.get('/shows/foobar/translations/en') {|env| [200, {}, [{title: 'foobar', overview: 'lorem ipsum'}].to_json]}
+      s.get('/shows/foobar/translations/') {|env| [200, {}, [{title: 'foobar', overview: 'lorem ipsum'}, {title: 'foobaz', overview: 'lorus ipsos'}].to_json]}
+      s.get('/shows/foobar/comments/') {|env| [200, {}, [{id: 1, comment: 'yolo swag compound sentences'}, {id: 2, comment: 'hungarian rug burns'}].to_json]}
+      s.get('/shows/foobar/people/') {|env| [200, {}, {cast: [{character: 'Fozzie Bear'}]}.to_json]}
+      s.get('/shows/foobar/ratings/') {|env| [200, {}, {rating: 5, votes: 3, distribution: {}}.to_json]}
     end
 
-    # Stubs for Alias
-    stub_api_for(Traktion::Models::Alias) do |s|
-      s.get('shows/foobar/aliases') {|env| [200, {}, [].to_json]}
-    end
-
-    # Stubs for Translation
-    stub_api_for(Traktion::Models::Translation) do |s|
-      s.get('shows/foobar/translations') {|env| [200, {}, [{title: 'foobar', overview: 'lorem ipsum', language: 'es'}].to_json]}
-      s.get('shows/foobar/translations/es') {|env| [200, {}, {title: 'foobar', overview: 'lorem ipsum', language: 'es'}.to_json]}
-    end
-
-    @client = Traktion::Client.new('abc123')
-  end
-
-  it 'gets the summary of a show' do
-    result = @client.shows.find('foobar')
-    expect(result).not_to be nil
-    expect(result.title).to eq('foobar')
+    # Create the client instance.
+    @control = Traktion.start('foobar')
   end
 
   it 'gets an array of the most popular shows' do
-    result = @client.shows.popular
-    expect(result).to be_an(Array)
-    expect(result.size).to eq(2)
-    expect(result.first.title).to eq('foo')
+    response = @control.shows.popular
+    expect(response).to be_an Array
   end
 
-  it 'gets an array of the trending shows' do
-    result = @client.shows.trending
-    expect(result).to be_an(Array)
-    expect(result.size).to eq(2)
-    expect(result.first.watchers).to eq(100)
-    expect(result.first.show[:title]).to eq('foo')
+  it 'gets an array of trending shows' do
+    response = @control.shows.trending
+    expect(response).to be_an Array
   end
 
-  it 'gets an array of recently updated shows' do
-    result = @client.shows.updates('2014-09-22')
-    expect(result).to be_an(Array)
-    expect(result.first.updated_at).to eq('2014-09-22')
-    expect(result.first.show[:title]).to eq('foo')
+  it 'gets an array of all shows updated since a given date' do
+    response = @control.shows.updates('2015-02-24')
+    expect(response).to be_an Array
   end
 
-  it 'gets an array of aliases for a show' do
-    result = @client.shows.find('foobar').aliases
-    expect(result).to be_an(Array)
+  it 'gets the summary of a specific show' do
+    response = @control.shows.find('foobar')
+    expect(response).to be_a Traktion::Models::Show
+    expect(response.title).to eq 'foobar'
   end
 
-  it 'gets an array of translated details for a show' do
-    result = @client.shows.find('foobar').translations
-    expect(result).to be_an(Array)
-    expect(result.first.title).to eq('foobar')
+  it 'gets an array of title aliases for a specific show' do
+    response = @control.shows.find('foobar').aliases
+    expect(response).to be_an Array
   end
 
-  it 'gets the translated details for a show in a language' do
-    result = @client.shows.find('foobar').translations('es')
-    expect(result).to be_an(Traktion::Models::Translation)
-    expect(result.title).to eq('foobar')
+  it 'gets an array of one hash containing the translated attributes for a specific show, for given a language' do
+    response = @control.shows.find('foobar').translations('en')
+    expect(response).to be_an Array
+    expect(response.size).to be 1
+    expect(response.first[:title]).to eq 'foobar'
+  end
+
+  it 'gets an array of hashes containing the translated attributes for a specific show, for all available languages' do
+    response = @control.shows.find('foobar').translations
+    expect(response).to be_an Array
+    expect(response.size).to be 2
+    expect(response[1][:title]).to eq 'foobaz'
+  end
+
+  it 'gets an array of the comments for a specific show' do
+    response = @control.shows.find('foobar').comments
+    expect(response).to be_an Array
+    expect(response.first[:comment]).to eq 'yolo swag compound sentences'
+  end
+
+  it 'gets all the cast and crew for a specific show' do
+    response = @control.shows.find('foobar').people
+    expect(response).to be_a Hash
+    expect(response[:cast]).to be_an Array
+    expect(response[:cast].first[:character]).to eq 'Fozzie Bear'
+  end
+
+  it 'gets the user ratings for a specific show' do
+    response = @control.shows.find('foobar').ratings
+    expect(response).to be_a Hash
+    expect(response[:rating]).to be 5
   end
 end
